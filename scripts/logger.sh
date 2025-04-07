@@ -1,9 +1,12 @@
 #!/bin/bash
 
+GIT_REPO_PATH=$(git rev-parse --show-toplevel 2>/dev/null)
 # OPENRISC_PREFIX="/opt/toolchain/or1k-elf"
 OPENRISC_PREFIX="$HOME/env/toolchain/or1k-elf"
 OPENRISC_TOOL_PREFIX="$HOME/env/toolchain/or1k-tools"
 WORK_DIR="$HOME/work/openrisc"
+OPENRISC_CFGS="$GIT_REPO_PATH/cfgs"
+OPENRISC_KERNEL_CFG="$OPENRISC_CFGS/kernel"
 
 # Colors for output
 RED='\033[0;31m'

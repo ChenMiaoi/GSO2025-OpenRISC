@@ -6,6 +6,7 @@ BUILD_GCC=false
 BUILD_GDB=false
 BUILD_QEMU=false
 BUILD_LINUX=false
+BUILD_BUILDROOT=false
 BUILD_OR1KSIM=false
 BUILD_OPENOCD=false
 USE_GMP=false
@@ -13,8 +14,8 @@ USE_MPFR=false
 USE_MPC=false
 CLEAN_CACHE=false
 CLEAN_TARGET="all"
-GIT_REPO_PATH=$(git rev-parse --show-toplevel 2>/dev/null)
 
+GIT_REPO_PATH=$(git rev-parse --show-toplevel 2>/dev/null)
 source $GIT_REPO_PATH/scripts/logger.sh
 
 # Function to setup build dependencies (Ubuntu/Debian only)
@@ -652,11 +653,29 @@ build_linux() {
   fi
 
   info "Configuring Linux kernel"
-  make defconfig || {
-    error "Failed to configure Linux kernel"
+  cp $OPENRISC_KERNEL_CFG/.config .config || {
+    error "Failed to copy config"
     popd >/dev/null
     return 1
   }
+
+  local initramfs_source=$OPENRISC_KERNEL_CFG/rootfs.cpio
+  if grep -q "^CONFIG_INITRAMFS_SOURCE=" .config; then
+    sed -i "s|^CONFIG_INITRAMFS_SOURCE=.*|CONFIG_INITRAMFS_SOURCE=\"${initramfs_source}\"|" .config || {
+      error "Failed to set config CONFIG_INITRAMFS_SOURCE"
+      popd >/dev/null
+      return 1
+    }
+  else
+    warning "config CONFIG_INITRAMFS_SOURCE not exists, appending to the tail"
+    info "CONFIG_INITRAMFS_SOURCE=${initramfs_source}" >>.config
+  fi
+
+  # make defconfig || {
+  #   error "Failed to configure Linux kernel"
+  #   popd >/dev/null
+  #   return 1
+  # }
 
   info "Building Linux kernel"
   make -j$(nproc) || {
@@ -1046,6 +1065,9 @@ clean_cache() {
   linux)
     clean_linux || return $?
     ;;
+  buildroot)
+    clean_buildroot || return $?
+    ;;
   # or1ksim)
   #   clean_or1ksim || return $?
   #   ;;
@@ -1061,6 +1083,7 @@ clean_cache() {
   all)
     clean_qemu || return $?
     clean_linux || return $?
+    clean_buildroot || return $?
     # clean_or1ksim || return $?
     # clean_openocd || return $?
     clean_extra || return $?
@@ -1095,6 +1118,7 @@ Build options:
   --build-gdb           Build GDB
   --build-qemu          Build QEMU
   --build-linux         Build Linux kernel
+  --build-buildroot     Build buildroot
   #--build-or1ksim      Build OR1KSim (currently disabled)
   #--build-openocd      Build OpenOCD (currently disabled)
 
@@ -1103,6 +1127,7 @@ Clean options:
   --clean=<target>      Clean specific target:
                         qemu      - Clean QEMU build
                         linux     - Clean Linux build
+                        buildroot - Clean buildroot build
                         toolchain - Clean toolchain components
                         extra     - Clean extra libraries
                         all       - Clean everything (default)
@@ -1165,6 +1190,10 @@ parse_arguments() {
       BUILD_LINUX=true
       shift
       ;;
+      --build-linux)
+      BUILD_BUILDROOT=true
+      shift
+      ;;
     # --build-or1ksim)
     #   BUILD_OR1KSIM=true
     #   shift
@@ -1214,6 +1243,11 @@ main() {
 
   if $BUILD_LINUX; then
     build_linux
+    exit $?
+  fi
+
+  if $BUILD_BUILDROOT; then
+    build_buildroot
     exit $?
   fi
 

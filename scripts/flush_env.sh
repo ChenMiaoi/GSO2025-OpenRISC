@@ -1,10 +1,7 @@
 #!/bin/bash
 
-OPENRISC_PREFIX="$HOME/env/toolchain/or1k-elf"
-OPENRISC_TOOL_PREFIX="$HOME/env/toolchain/or1k-tools"
 GIT_REPO_PATH=$(git rev-parse --show-toplevel 2>/dev/null)
-
-source logger.sh
+source $GIT_REPO_PATH/scripts/logger.sh
 
 export OR1K_TOOLCHAIN="$OPENRISC_PREFIX/bin"
 export OR1K_QEMU="$OPENRISC_TOOL_PREFIX/qemu/bin"
