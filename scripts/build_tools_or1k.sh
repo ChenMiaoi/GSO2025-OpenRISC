@@ -1076,10 +1076,53 @@ clean_cache() {
   return 0
 }
 
+show_help() {
+  cat <<EOF
+Usage: $0 [options]
+
+Build and clean OpenRISC toolchain components.
+
+Options:
+  --prefix=<dir>        Set installation directory (default: current dir)
+  --use-gmp             Use GMP library
+  --use-mpfr            Use MPFR library
+  --use-mpc             Use MPC library
+  --use-extra           Use all extra math libraries (GMP, MPFR, MPC)
+  
+Build options:
+  --build-binutils      Build binutils
+  --build-gcc           Build GCC
+  --build-gdb           Build GDB
+  --build-qemu          Build QEMU
+  --build-linux         Build Linux kernel
+  #--build-or1ksim      Build OR1KSim (currently disabled)
+  #--build-openocd      Build OpenOCD (currently disabled)
+
+Clean options:
+  --clean               Clean all build artifacts
+  --clean=<target>      Clean specific target:
+                        qemu      - Clean QEMU build
+                        linux     - Clean Linux build
+                        toolchain - Clean toolchain components
+                        extra     - Clean extra libraries
+                        all       - Clean everything (default)
+
+Examples:
+  $0 --prefix=/opt/openrisc --build-toolchain
+  $0 --clean=qemu
+  $0 --use-extra --build-gcc --build-qemu
+
+EOF
+  exit 0
+}
+
 # Function to parse arguments
 parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+    --help)
+      show_help
+      ;;
     --prefix=*)
       OPENRISC_PREFIX="${1#*=}"
       shift
