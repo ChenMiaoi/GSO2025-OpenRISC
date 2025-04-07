@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# OPENRISC_PREFIX="/opt/toolchain/or1k-elf"
+OPENRISC_PREFIX="$HOME/env/toolchain/or1k-elf"
+OPENRISC_TOOL_PREFIX="$HOME/env/toolchain/or1k-tools"
+WORK_DIR="$HOME/work/openrisc"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'

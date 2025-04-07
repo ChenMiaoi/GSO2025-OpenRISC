@@ -1,22 +1,21 @@
 #!/bin/bash
 
 # Global variables
-# OPENRISC_PREFIX="/opt/toolchain/or1k-elf"
-OPENRISC_PREFIX="$HOME/env/toolchain/or1k-elf"
-OPENRISC_TOOL_PREFIX="$HOME/env/toolchain/or1k-tools"
-WORK_DIR="$HOME/work/openrisc"
 BUILD_BINUTILS=false
 BUILD_GCC=false
 BUILD_GDB=false
 BUILD_QEMU=false
 BUILD_LINUX=false
+BUILD_OR1KSIM=false
+BUILD_OPENOCD=false
 USE_GMP=false
 USE_MPFR=false
 USE_MPC=false
 CLEAN_CACHE=false
 CLEAN_TARGET="all"
+GIT_REPO_PATH=$(git rev-parse --show-toplevel 2>/dev/null)
 
-source logger.sh
+source $GIT_REPO_PATH/scripts/logger.sh
 
 # Function to setup build dependencies (Ubuntu/Debian only)
 setup_dependency() {
@@ -37,26 +36,11 @@ setup_dependency() {
   }
 
   # Install required packages
-  sudo apt-get install -y \
-    gcc \
-    g++ \
-    make \
-    cmake \
-    autogen \
-    automake \
-    autoconf \
-    zlib1g-dev \
-    texinfo \
-    build-essential \
-    flex \
-    bison \
-    git \
-    wget \
-    xz-utils ||
-    {
-      error "Failed to install dependencies"
-      return 1
-    }
+  sudo apt-get install -y gcc g++ make cmake autogen automake autoconf zlib1g-dev \
+    texinfo build-essential flex bison git wget xz-utils libtool libjim-dev || {
+    error "Failed to install dependencies"
+    return 1
+  }
 
   success "Build dependencies installed successfully"
   return 0
@@ -686,6 +670,164 @@ build_linux() {
   return 0
 }
 
+build_or1ksim() {
+  info "Building or1ksim for OpenRISC"
+
+  # Clone Linux repository if not exists
+  if [ ! -d "or1ksim" ]; then
+    info "Cloning or1ksim repository"
+    git clone --depth 1 https://github.com/openrisc/or1ksim.git or1ksim || {
+      error "Failed to clone or1ksim repository"
+      return 1
+    }
+  fi
+
+  pushd or1ksim >/dev/null || {
+    error "Failed to enter or1ksim directory"
+    return 1
+  }
+
+  # Check if toolchain is in PATH
+  if ! command -v ${CROSS_COMPILE}gcc >/dev/null 2>&1; then
+    error "OpenRISC toolchain not found in PATH. Please build toolchain first or add to PATH."
+    popd >/dev/null
+    return 1
+  fi
+
+  mkdir -p build_or1ksim
+  pushd build_or1ksim >/dev/null || {
+    error "Failed to enter build_or1ksim directory"
+    return 1
+  }
+
+  info "Configuring or1ksim"
+  ../configure --prefix="$OPENRISC_TOOL_PREFIX/or1ksim" || {
+    error "Failed to configure or1ksim"
+    popd >/dev/null
+    popd >/dev/null
+
+    return 1
+  }
+
+  info "Building or1ksim"
+  make -j$(nproc) || {
+    error "Failed to build or1ksim"
+    popd >/dev/null
+    popd >/dev/null
+
+    return 1
+  }
+
+  info "Installing or1ksim"
+  make install || {
+    error "or1ksim installation failed"
+    popd >/dev/null
+    popd >/dev/null
+
+    return 1
+  }
+
+  popd >/dev/null
+  popd >/dev/null
+
+  # Add QEMU to PATH in .bashrc
+  local bashrc="$HOME/.bashrc"
+  local or1ksim_path_line="export PATH=\$PATH:${OPENRISC_TOOL_PREFIX}/or1ksim/bin"
+
+  if ! grep -q "${or1ksim_path_line}" "$bashrc"; then
+    info "Adding or1ksim to PATH in ${bashrc}"
+    echo "${or1ksim_path_line}" >>"$bashrc" || {
+      error "Failed to update ${bashrc}"
+      return 1
+    }
+    # Source the updated .bashrc
+    source "$bashrc"
+  else
+    source "$bashrc"
+  fi
+
+  success "or1ksim kernel built successfully"
+  return 0
+}
+
+build_openocd() {
+  info "Building openocd for OpenRISC"
+
+  # Clone Linux repository if not exists
+  if [ ! -d "openocd" ]; then
+    info "Cloning openocd repository"
+    git clone --depth 1 https://github.com/openocd-org/openocd.git openocd || {
+      error "Failed to clone openocd repository"
+      return 1
+    }
+  fi
+
+  pushd openocd >/dev/null || {
+    error "Failed to enter openocd directory"
+    return 1
+  }
+
+  # Check if toolchain is in PATH
+  # if ! command -v ${CROSS_COMPILE}gcc >/dev/null 2>&1; then
+  #   error "OpenRISC toolchain not found in PATH. Please build toolchain first or add to PATH."
+  #   popd >/dev/null
+  #   return 1
+  # fi
+
+  info "Bootstrap openocd"
+  ./bootstrap || {
+    error "Failed to bootstrap openocd"
+    popd >/dev/null
+
+    return 1
+  }
+
+  info "Configuring openocd"
+  ./configure --prefix="$OPENRISC_TOOL_PREFIX/openocd" || {
+    error "Failed to configure openocd"
+    popd >/dev/null
+
+    return 1
+  }
+
+  info "Building openocd"
+  make -j$(nproc) || {
+    error "Failed to build openocd"
+    popd >/dev/null
+
+    return 1
+  }
+
+  info "Installing openocd"
+  make install || {
+    error "openocd installation failed"
+    popd >/dev/null
+
+    return 1
+  }
+
+  popd >/dev/null
+
+  # Add QEMU to PATH in .bashrc
+  local bashrc="$HOME/.bashrc"
+  local openocd_path_line="export PATH=\$PATH:${OPENRISC_TOOL_PREFIX}/openocd/bin"
+
+  if ! grep -q "${openocd_path_line}" "$bashrc"; then
+    info "Adding openocd to PATH in ${bashrc}"
+    echo "${openocd_path_line}" >>"$bashrc" || {
+      error "Failed to update ${bashrc}"
+      return 1
+    }
+    # Source the updated .bashrc
+    source "$bashrc"
+  else
+    source "$bashrc"
+  fi
+
+  success "openocd kernel built successfully"
+  return 0
+}
+
 clean_toolchain() {
   # Remove build directories
   local build_dirs=(
@@ -823,6 +965,60 @@ clean_linux() {
   fi
 }
 
+clean_or1ksim() {
+  local or1ksim_files="or1ksim/build_or1ksim"
+  local or1ksim_install_dir="${OPENRISC_TOOL_PREFIX}/or1ksim"
+
+  if [ -d "$WORK_DIR/${or1ksim_files}" ]; then
+    info "Clean or1ksim Build Cache"
+    make -C "$WORK_DIR/$or1ksim_files" distclean || {
+      error "Failed to clean or1ksim Build Cache"
+      return 1
+    }
+  fi
+
+  if [ -d "${or1ksim_install_dir}" ]; then
+    info "Removing installed or1ksim from ${or1ksim_install_dir}"
+    rm -rf "${or1ksim_install_dir}" || {
+      error "Failed to remove or1ksim installation"
+      return 1
+    }
+  fi
+
+  # Remove or1ksim PATH from .bashrc
+  local bashrc="$HOME/.bashrc"
+  local or1ksim_path_line="export PATH=\$PATH:${or1ksim_install_dir}/bin"
+
+  remove_path_entry "$bashrc" "$or1ksim_path_line"
+}
+
+clean_openocd() {
+  local openocd_files="openocd"
+  local openocd_install_dir="${OPENRISC_TOOL_PREFIX}/openocd"
+
+  if [ -d "$WORK_DIR/${openocd_files}" ]; then
+    info "Clean openocd Build Cache"
+    make -C "$WORK_DIR/$openocd_files" distclean || {
+      error "Failed to clean openocd Build Cache"
+      return 1
+    }
+  fi
+
+  if [ -d "${openocd_install_dir}" ]; then
+    info "Removing installed openocd from ${openocd_install_dir}"
+    rm -rf "${openocd_install_dir}" || {
+      error "Failed to remove openocd installation"
+      return 1
+    }
+  fi
+
+  # Remove openocd PATH from .bashrc
+  local bashrc="$HOME/.bashrc"
+  local openocd_path_line="export PATH=\$PATH:${openocd_install_dir}/bin"
+
+  remove_path_entry "$bashrc" "$openocd_path_line"
+}
+
 remove_path_entry() {
   local file="$1"
   local pattern="$2"
@@ -850,6 +1046,12 @@ clean_cache() {
   linux)
     clean_linux || return $?
     ;;
+  # or1ksim)
+  #   clean_or1ksim || return $?
+  #   ;;
+  # openocd)
+  #   clean_openocd || return $?
+  #   ;;
   toolchain)
     clean_toolchain || return $?
     ;;
@@ -859,6 +1061,8 @@ clean_cache() {
   all)
     clean_qemu || return $?
     clean_linux || return $?
+    # clean_or1ksim || return $?
+    # clean_openocd || return $?
     clean_extra || return $?
     clean_toolchain || return $?
     ;;
@@ -918,6 +1122,14 @@ parse_arguments() {
       BUILD_LINUX=true
       shift
       ;;
+    # --build-or1ksim)
+    #   BUILD_OR1KSIM=true
+    #   shift
+    #   ;;
+    # --build-openocd)
+    #   BUILD_OPENOCD=true
+    #   shift
+    #   ;;
     --clean=*)
       CLEAN_CACHE=true
       CLEAN_TARGET="${1#*=}"
@@ -939,7 +1151,7 @@ parse_arguments() {
 # Main function
 main() {
   setup_work_dir
-  
+
   pushd $WORK_DIR >/dev/null || {
     error "Failed to change to work directory"
     exit 1
@@ -951,6 +1163,7 @@ main() {
     exit $?
   fi
 
+  setup_dependency
   if $BUILD_QEMU; then
     build_qemu
     exit $?
@@ -961,10 +1174,19 @@ main() {
     exit $?
   fi
 
+  if $BUILD_OR1KSIM; then
+    build_or1ksim
+    exit $?
+  fi
+
+  if $BUILD_OPENOCD; then
+    build_openocd
+    exit $?
+  fi
+
   info "Starting OpenRISC toolchain build process"
   info "Toolchain prefix: $OPENRISC_PREFIX"
 
-  setup_dependency
   setup_prefix
   clone_repos
 
