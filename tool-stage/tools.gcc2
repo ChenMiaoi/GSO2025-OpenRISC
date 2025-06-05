@@ -1,0 +1,27 @@
+#!/bin/bash
+
+DIR=`dirname $0`
+source $DIR/tools.config
+
+BUILD_DIR=$OR1K_TOOLCHAIN_WORKSPACE/gcc/build-stage2
+mkdir -p $BUILD_DIR
+
+if [ -n $RECONFIG ] ; then
+  pushd $BUILD_DIR
+    ../configure \
+      --target=$CROSS \
+      --prefix=$INSTALLDIR \
+      --with-gnu-ld \
+      --with-gnu-as \
+      --disable-nls \
+      --disable-lto \
+      --disable-libssp \
+      --disable-shared \
+      --with-multilib-list=mcmov \
+      --enable-languages=c,c++ \
+      --with-newlib
+fi
+  make -j${THREADS}
+  make install
+
+popd

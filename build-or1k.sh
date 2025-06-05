@@ -5,6 +5,7 @@ set -eu
 GIT_REPO_PATH=$(git rev-parse --show-toplevel 2>/dev/null)
 source "${GIT_REPO_PATH}/logger.sh"
 
+
 OR1K_WORKSPACE="${HOME}/work/openrisc"
 OR1K_LINUX_WORKSPACE="${HOME}/work"
 
@@ -136,6 +137,8 @@ Options:
   --build-linux    Build Linux kernel for OpenRISC
   --get-rootfs     Download and extract OpenRISC root filesystem
   --get-tools      Download and install OpenRISC toolchain
+  --start-linux    Start Linux kernel in QEMU
+  --clean-linux    Clean Linux workspace
   --help, -h       Show this help message and exit
 
 Environment:
@@ -147,6 +150,8 @@ Examples:
   $0 --build-qemu            # Build QEMU only
   $0 --get-tools --get-rootfs # Get toolchain and rootfs
   $0 --build-linux           # Build Linux kernel
+  $0 --start-linux           # Start Linux kernel in QEMU
+  $0 --clean-linux           # Clean Linux workspace
 
 Note:
   This script requires git, wget, and basic build tools to be installed.
@@ -235,7 +240,7 @@ build_linux() {
   ARCH=openrisc CROSS_COMPILE=or1k-linux- make virt_defconfig
 
   popd >/dev/null
-  if ! "${OR1K_WORKSPACE}/or1k-utils/scripts/make-or1k-linux"; then
+  if ! bear -- "${OR1K_WORKSPACE}/or1k-utils/scripts/make-or1k-linux"; then
     error "Linux kernel build failed"
     popd >/dev/null || true
     return 1
@@ -243,6 +248,78 @@ build_linux() {
 
   popd >/dev/null
   success "Linux kernel built successfully!"
+}
+
+build_tools() {
+  info "Building Or1k ToolChains"
+  source "${GIT_REPO_PATH}/tool-stage/tools.config"
+
+  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/gcc" ]; then
+    download_url "$OR1K_GCC_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/gcc" || {
+      error "Failed to download and extract gcc"
+      return 1
+    }
+  fi
+  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/binutils" ]; then
+    download_url "$OR1K_BINUTILS_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/binutils" || {
+      error "Failed to download and extract binutils"
+      return 1
+    }
+  fi
+  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/gdb" ]; then
+    download_url "$OR1K_GDB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/gdb" || {
+      error "Failed to download and extract gdb"
+      return 1
+    }
+  fi
+  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/gmp" ]; then
+    download_url "$OR1K_GMP_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/gmp" || {
+      error "Failed to download and extract gmp"
+      return 1
+    }
+  fi
+  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" ]; then
+    download_url "$OR1K_NEWLIB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" || {
+      error "Failed to download and extract newlib"
+      rm -rf ${OR1K_TOOLCHAIN_WORKSPACE}/newlib
+      return 1
+    }
+  fi
+  
+  if [ ! -x "${INSTALLDIR}/bin/${CROSS}-objdump" ]; then
+    info "Building binutils"
+    ${GIT_REPO_PATH}/tool-stage/tools.binutils || {
+      error "Failed to build binutils"
+      return 1
+    }
+    success "Build binutils at ${INSTALLDIR}"
+  fi
+  # if [ ! -x "${INSTALLDIR}/bin/${CROSS}-gcc" ]; then
+    export PATH=$INSTALLDIR/bin:$PATH
+
+    info "Building gcc-1"
+    ${GIT_REPO_PATH}/tool-stage/tools.gcc1 >/dev/null || {
+      error "Failed to build gcc-1"
+      return 1
+    }
+    success "Build gcc-1 at ${INSTALLDIR}"
+
+
+    info "Building newlib"
+    ${GIT_REPO_PATH}/tool-stage/tools.newlib >/dev/null || {
+      error "Failed to build newlib"
+      return 1
+    }
+    success "Build newlib at ${INSTALLDIR}"
+
+
+    info "Building gcc-2"
+    ${GIT_REPO_PATH}/tool-stage/tools.gcc2 >/dev/null || {
+      error "Failed to build gcc-2"
+      return 1
+    }
+    success "Build gcc-2 at ${INSTALLDIR}"
+  # fi
 }
 
 get_rootfs() {
@@ -307,6 +384,38 @@ start_linux() {
   popd >/dev/null
 }
 
+debug_linux() {
+  info "Debugging Linux kernel..."
+  pushd "${OR1K_WORKSPACE}" >/dev/null || {
+    error "Failed to enter work directory"
+    return 1
+  }
+
+  if ! "${OR1K_WORKSPACE}/or1k-utils/scripts/qemu-or1k-linux" -S; then
+    error "Debug Linux Kernel failed"
+    popd >/dev/null || true
+    return 1
+  fi
+
+  popd >/dev/null
+}
+
+clean_linux() {
+  info "Cleaning Linux workspace..."
+  pushd "${OR1K_LINUX_WORKSPACE}/linux" >/dev/null || {
+    error "Failed to enter Linux workspace directory"
+    return 1
+  }
+
+  make mrproper || {
+    error "Failed to clean Linux workspace"
+    popd >/dev/null || true
+    return 1
+  }
+
+  popd >/dev/null
+}
+
 # Main option handling
 if [[ $# -eq 0 ]]; then
   error "No options specified. Showing help."
@@ -322,6 +431,9 @@ while [[ $# -gt 0 ]]; do
   --build-linux)
     build_linux
     ;;
+  --build-tools)
+    build_tools
+    ;;
   --get-rootfs)
     get_rootfs
     ;;
@@ -330,6 +442,12 @@ while [[ $# -gt 0 ]]; do
     ;;
   --start-linux)
     start_linux
+    ;;
+  --debug-linux)
+    debug_linux
+    ;;
+  --clean-linux)
+    clean_linux
     ;;
   --help | -h)
     show_help
