@@ -260,24 +260,18 @@ build_tools() {
       return 1
     }
   fi
-  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/binutils" ]; then
-    download_url "$OR1K_BINUTILS_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/binutils" || {
-      error "Failed to download and extract binutils"
+  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/binutils-gdb" ]; then
+    download_url "$OR1K_BINUTILS_GDB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/binutils-gdb" || {
+      error "Failed to download and extract binutils-gdb"
       return 1
     }
   fi
-  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/gdb" ]; then
-    download_url "$OR1K_GDB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/gdb" || {
-      error "Failed to download and extract gdb"
-      return 1
-    }
-  fi
-  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/gmp" ]; then
-    download_url "$OR1K_GMP_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/gmp" || {
-      error "Failed to download and extract gmp"
-      return 1
-    }
-  fi
+  # if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/gmp" ]; then
+  #   download_url "$OR1K_GMP_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/gmp" || {
+  #     error "Failed to download and extract gmp"
+  #     return 1
+  #   }
+  # fi
   if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" ]; then
     download_url "$OR1K_NEWLIB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" || {
       error "Failed to download and extract newlib"
@@ -286,40 +280,14 @@ build_tools() {
     }
   fi
   
-  if [ ! -x "${INSTALLDIR}/bin/${CROSS}-objdump" ]; then
+  if [ ! -x "${INSTALLDIR}/bin/${CROSS}-gdb" ]; then
     info "Building binutils"
-    ${GIT_REPO_PATH}/tool-stage/tools.binutils || {
-      error "Failed to build binutils"
+    ${OR1K_WORKSPACE}/or1k-utils/toolchain/newlib.build || {
+      error "Failed to build newlib.build"
       return 1
     }
-    success "Build binutils at ${INSTALLDIR}"
+    success "Build newlib.build at ${INSTALLDIR}"
   fi
-  # if [ ! -x "${INSTALLDIR}/bin/${CROSS}-gcc" ]; then
-    export PATH=$INSTALLDIR/bin:$PATH
-
-    info "Building gcc-1"
-    ${GIT_REPO_PATH}/tool-stage/tools.gcc1 >/dev/null || {
-      error "Failed to build gcc-1"
-      return 1
-    }
-    success "Build gcc-1 at ${INSTALLDIR}"
-
-
-    info "Building newlib"
-    ${GIT_REPO_PATH}/tool-stage/tools.newlib >/dev/null || {
-      error "Failed to build newlib"
-      return 1
-    }
-    success "Build newlib at ${INSTALLDIR}"
-
-
-    info "Building gcc-2"
-    ${GIT_REPO_PATH}/tool-stage/tools.gcc2 >/dev/null || {
-      error "Failed to build gcc-2"
-      return 1
-    }
-    success "Build gcc-2 at ${INSTALLDIR}"
-  # fi
 }
 
 get_rootfs() {
