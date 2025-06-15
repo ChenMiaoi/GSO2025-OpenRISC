@@ -158,16 +158,8 @@ Note:
 EOF
 }
 
-build_qemu() {
-  info "Building QEMU for OpenRISC..."
-
-  # Clone dependencies if they don't exist
-  if [ ! -d "${OR1K_WORKSPACE}/or1k-utils" ]; then
-    clone_url "$OR1K_UTILS_URL" "${OR1K_WORKSPACE}/or1k-utils" || {
-      error "Failed to clone or1k-utils"
-      return 1
-    }
-  fi
+get_qemu() {
+  info "Getting QEMU for OpenRISC..."
 
   if [ ! -d "${OR1K_WORKSPACE}/qemu" ]; then
     clone_url "$OR1K_QEMU_URL" "${OR1K_WORKSPACE}/qemu" || {
@@ -176,40 +168,11 @@ build_qemu() {
     }
   fi
 
-  # Build QEMU
-  pushd "${OR1K_WORKSPACE}/qemu" >/dev/null || {
-    error "Failed to enter QEMU directory"
-    return 1
-  }
-
-  info "Configuring QEMU..."
-  mkdir -p build
-  pushd build >/dev/null || {
-    error "Failed to create/enter build directory"
-    return 1
-  }
-
-  # Run configuration
-  if ! "${OR1K_WORKSPACE}/or1k-utils/qemu/config.qemu"; then
-    error "QEMU configuration failed"
-    popd >/dev/null || true
-    return 1
-  fi
-
-  info "Compiling QEMU (this may take a while)..."
-  if ! make -j$(nproc); then
-    error "QEMU compilation failed"
-    popd >/dev/null || true
-    return 1
-  fi
-
-  popd >/dev/null # build
-  popd >/dev/null # qemu
-  success "QEMU built successfully!"
+  success "Getting QEMU successfully!"
 }
 
-build_linux() {
-  info "Building Linux for OpenRISC..."
+get_linux() {
+  info "Getting Linux for OpenRISC..."
 
   # Clone dependencies if they don't exist
   if [ ! -d "${OR1K_WORKSPACE}/or1k-utils" ]; then
@@ -226,28 +189,20 @@ build_linux() {
     }
   fi
 
-  # Build Linux
-  pushd "${OR1K_WORKSPACE}" >/dev/null || {
-    error "Failed to enter workspace directory"
-    return 1
-  }
+  success "Getting Linux kernel successfully!"
+}
 
-  info "Building Linux kernel..."
-  pushd "${OR1K_LINUX_WORKSPACE}/linux" >/dev/null || {
-    error "Failed to enter linux directory"
-  }
+get_or1k_utils() {
+  info "Getting or1k-utils for OpenRISC..."
 
-  ARCH=openrisc CROSS_COMPILE=or1k-linux- make virt_defconfig
-
-  popd >/dev/null
-  if ! bear -- "${OR1K_WORKSPACE}/or1k-utils/scripts/make-or1k-linux"; then
-    error "Linux kernel build failed"
-    popd >/dev/null || true
-    return 1
+  if [ ! -d "${OR1K_WORKSPACE}/or1k-utils" ]; then
+    clone_url "$OR1K_UTILS_URL" "${OR1K_WORKSPACE}/or1k-utils" || {
+      error "Failed to clone or1k-utils"
+      return 1
+    }
   fi
 
-  popd >/dev/null
-  success "Linux kernel built successfully!"
+  success "Getting or1k-utils successfully!"
 }
 
 build_tools() {
@@ -266,12 +221,7 @@ build_tools() {
       return 1
     }
   fi
-  # if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/gmp" ]; then
-  #   download_url "$OR1K_GMP_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/gmp" || {
-  #     error "Failed to download and extract gmp"
-  #     return 1
-  #   }
-  # fi
+
   if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" ]; then
     download_url "$OR1K_NEWLIB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" || {
       error "Failed to download and extract newlib"
@@ -301,12 +251,37 @@ get_rootfs() {
 
 get_tools() {
   info "Getting OpenRISC toolchain..."
-  download_url "$OR1K_TOOLCHAIN_URL" "${OR1K_WORKSPACE}/toolchain" || {
+  
+  source "${GIT_REPO_PATH}/tools.config"
+
+  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/gcc" ]; then
+    download_url "$OR1K_GCC_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/gcc" || {
+      error "Failed to download and extract gcc"
+      return 1
+    }
+  fi
+  
+  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/binutils-gdb" ]; then
+    download_url "$OR1K_BINUTILS_GDB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/binutils-gdb" || {
+      error "Failed to download and extract binutils-gdb"
+      return 1
+    }
+  fi
+
+  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" ]; then
+    download_url "$OR1K_NEWLIB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" || {
+      error "Failed to download and extract newlib"
+      rm -rf ${OR1K_TOOLCHAIN_WORKSPACE}/newlib
+      return 1
+    }
+  fi
+
+  download_url "$OR1K_TOOLCHAIN_URL" "$INSTALL_DIR" || {
     error "Failed to download and extract toolchain"
     return 1
   }
 
-  local toolchain_bin="${OR1K_WORKSPACE}/toolchain/bin"
+  local toolchain_bin="${INSTALLDIR}/bin"
 
   # Check if the path is already in PATH
   if [[ ":$PATH:" != *":${toolchain_bin}:"* ]]; then
@@ -316,7 +291,7 @@ get_tools() {
     export PATH="${toolchain_bin}:$PATH"
 
     # Add to shell configuration files for future sessions
-    for shell_file in "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.profile"; do
+    for shell_file in "${HOME}/.bashrc"; do
       if [ -f "$shell_file" ]; then
         if ! grep -q "export PATH=\"${toolchain_bin}:\$PATH\"" "$shell_file"; then
           echo "export PATH=\"${toolchain_bin}:\$PATH\"" >>"$shell_file"
@@ -332,56 +307,8 @@ get_tools() {
     info "Toolchain is already in PATH"
   fi
 
-  success "Toolchain installed at ${OR1K_WORKSPACE}/toolchain"
+  success "Toolchain installed at $INSTALL_DIR"
   info "You may need to restart your shell or run 'source ~/.bashrc' for changes to take effect"
-}
-
-start_linux() {
-  info "Starting Linux kernel..."
-  pushd "${OR1K_WORKSPACE}" >/dev/null || {
-    error "Failed to enter work directory"
-    return 1
-  }
-
-  if ! "${OR1K_WORKSPACE}/or1k-utils/scripts/qemu-or1k-linux"; then
-    error "Start Linux Kernel failed"
-    popd >/dev/null || true
-    return 1
-  fi
-
-  popd >/dev/null
-}
-
-debug_linux() {
-  info "Debugging Linux kernel..."
-  pushd "${OR1K_WORKSPACE}" >/dev/null || {
-    error "Failed to enter work directory"
-    return 1
-  }
-
-  if ! "${OR1K_WORKSPACE}/or1k-utils/scripts/qemu-or1k-linux" -S; then
-    error "Debug Linux Kernel failed"
-    popd >/dev/null || true
-    return 1
-  fi
-
-  popd >/dev/null
-}
-
-clean_linux() {
-  info "Cleaning Linux workspace..."
-  pushd "${OR1K_LINUX_WORKSPACE}/linux" >/dev/null || {
-    error "Failed to enter Linux workspace directory"
-    return 1
-  }
-
-  make mrproper || {
-    error "Failed to clean Linux workspace"
-    popd >/dev/null || true
-    return 1
-  }
-
-  popd >/dev/null
 }
 
 # Main option handling
@@ -393,14 +320,11 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --build-qemu)
+  --get-qemu)
     build_qemu
     ;;
-  --build-linux)
+  --get-linux)
     build_linux
-    ;;
-  --build-tools)
-    build_tools
     ;;
   --get-rootfs)
     get_rootfs
@@ -408,14 +332,8 @@ while [[ $# -gt 0 ]]; do
   --get-tools)
     get_tools
     ;;
-  --start-linux)
-    start_linux
-    ;;
-  --debug-linux)
-    debug_linux
-    ;;
-  --clean-linux)
-    clean_linux
+  --get-or1k-utils)
+    get_or1k_utils
     ;;
   --help | -h)
     show_help
