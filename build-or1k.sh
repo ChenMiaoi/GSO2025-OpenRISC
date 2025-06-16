@@ -174,14 +174,6 @@ get_qemu() {
 get_linux() {
   info "Getting Linux for OpenRISC..."
 
-  # Clone dependencies if they don't exist
-  if [ ! -d "${OR1K_WORKSPACE}/or1k-utils" ]; then
-    clone_url "$OR1K_UTILS_URL" "${OR1K_WORKSPACE}/or1k-utils" || {
-      error "Failed to clone or1k-utils"
-      return 1
-    }
-  fi
-
   if [ ! -d "${OR1K_LINUX_WORKSPACE}/linux" ]; then
     clone_url "$OR1K_LINUX_URL" "${OR1K_LINUX_WORKSPACE}/linux" || {
       error "Failed to clone Linux"
