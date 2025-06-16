@@ -286,10 +286,10 @@ fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --get-qemu)
-    build_qemu
+    get_qemu
     ;;
   --get-linux)
-    build_linux
+    get_linux
     ;;
   --get-rootfs)
     get_rootfs
