@@ -205,41 +205,6 @@ get_or1k_utils() {
   success "Getting or1k-utils successfully!"
 }
 
-build_tools() {
-  info "Building Or1k ToolChains"
-  source "${GIT_REPO_PATH}/tool-stage/tools.config"
-
-  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/gcc" ]; then
-    download_url "$OR1K_GCC_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/gcc" || {
-      error "Failed to download and extract gcc"
-      return 1
-    }
-  fi
-  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/binutils-gdb" ]; then
-    download_url "$OR1K_BINUTILS_GDB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/binutils-gdb" || {
-      error "Failed to download and extract binutils-gdb"
-      return 1
-    }
-  fi
-
-  if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" ]; then
-    download_url "$OR1K_NEWLIB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/newlib" || {
-      error "Failed to download and extract newlib"
-      rm -rf ${OR1K_TOOLCHAIN_WORKSPACE}/newlib
-      return 1
-    }
-  fi
-  
-  if [ ! -x "${INSTALLDIR}/bin/${CROSS}-gdb" ]; then
-    info "Building binutils"
-    ${OR1K_WORKSPACE}/or1k-utils/toolchain/newlib.build || {
-      error "Failed to build newlib.build"
-      return 1
-    }
-    success "Build newlib.build at ${INSTALLDIR}"
-  fi
-}
-
 get_rootfs() {
   info "Getting OpenRISC root filesystem..."
   download_url "$OR1K_ROOTFS_URL" "${OR1K_WORKSPACE}/buildroot-rootfs" || {
@@ -262,7 +227,7 @@ get_tools() {
   fi
   
   if [ ! -d "${OR1K_TOOLCHAIN_WORKSPACE}/binutils-gdb" ]; then
-    download_url "$OR1K_BINUTILS_GDB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/binutils-gdb" || {
+    clone_url "$OR1K_BINUTILS_GDB_URL" "${OR1K_TOOLCHAIN_WORKSPACE}/binutils-gdb" || {
       error "Failed to download and extract binutils-gdb"
       return 1
     }
