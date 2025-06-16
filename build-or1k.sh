@@ -241,7 +241,7 @@ get_tools() {
     }
   fi
 
-  download_url "$OR1K_TOOLCHAIN_URL" "$INSTALL_DIR" || {
+  download_url "$OR1K_TOOLCHAIN_URL" "$INSTALLDIR" || {
     error "Failed to download and extract toolchain"
     return 1
   }
@@ -272,7 +272,7 @@ get_tools() {
     info "Toolchain is already in PATH"
   fi
 
-  success "Toolchain installed at $INSTALL_DIR"
+  success "Toolchain installed at $INSTALLDIR"
   info "You may need to restart your shell or run 'source ~/.bashrc' for changes to take effect"
 }
 
